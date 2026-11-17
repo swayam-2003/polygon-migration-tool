@@ -51,6 +51,9 @@ class PolygonAPI:
             socket_timeout=2,
         )
 
+    def _local_test_cache_key(self, polygon_id):
+        return f"polygon_migration_local_test_cases_{polygon_id}"
+
     def _generate_api_sig(self, method_name, params):
         """
         Generates the required apiSig for a Polygon API request.
@@ -112,7 +115,7 @@ class PolygonAPI:
         post_params['time'] = request_time
         
         try:
-            response = requests.post(f"{self.API_URL}{method_name}", data=post_params)
+            response = self._post_polygon(f"{self.API_URL}{method_name}", post_params)
             response.raise_for_status()
 
             if not expect_json:
@@ -144,6 +147,31 @@ class PolygonAPI:
             str: The plain text response from the API.
         """
         return self._make_request(method_name, params, expect_json=False)
+
+    def _post_polygon(self, url, data):
+        """POST to Polygon, retrying when the API asks us to slow down."""
+        delay = 1
+        last_error = None
+        for attempt in range(6):
+            try:
+                response = requests.post(url, data=data, timeout=30)
+            except requests.exceptions.RequestException as exc:
+                last_error = exc
+                time.sleep(delay)
+                delay = min(delay * 2, 8)
+                continue
+            if response.status_code in (429, 503) and attempt < 5:
+                retry_after = response.headers.get("Retry-After")
+                try:
+                    wait = float(retry_after)
+                except (TypeError, ValueError):
+                    wait = delay
+                logger.warning("Polygon returned %s. Waiting %s seconds before retrying.", response.status_code, wait)
+                time.sleep(max(wait, 1))
+                delay = min(delay * 2, 8)
+                continue
+            return response
+        raise requests.exceptions.RequestException(last_error or "Polygon rate limit did not clear")
 
     def download_and_extract_package(self, problem_id, package_type='standard'):
         """
@@ -203,7 +231,7 @@ class PolygonAPI:
                 'time': request_time
             }
             
-            response = requests.post(f"{self.API_URL}problem.package", data=post_params)
+            response = self._post_polygon(f"{self.API_URL}problem.package", post_params)
             response.raise_for_status()
             
             # Check if response is actually a zip file
@@ -416,9 +444,8 @@ class PolygonAPI:
                           test_index, len(test_case['input']), len(test_case['output']))
                 
             except Exception as e:
-                logger.warning(f"Error fetching test case {test_index}: {e}")
-                test_case['input'] = ''
-                test_case['output'] = ''
+                logger.error("Error fetching test case %s: %s", test_index, e)
+                raise Exception(f"Could not fetch test case {test_index}: {e}") from e
             
             all_cases.append(test_case)
         
@@ -740,7 +767,9 @@ class PolygonAPI:
         try:
             client = self._redis_client()
             if client is None:
-                logger.info("Redis is not configured; test cases were not cached")
+                from django.core.cache import cache
+                cache.set(self._local_test_cache_key(polygon_id), test_cases, int(expiry_hours * 3600))
+                logger.info("Redis is not configured; cached %s test cases in local memory", len(test_cases))
                 return
 
             prefix = f"polygon_migration_test_cases_{polygon_id}"
@@ -775,7 +804,9 @@ class PolygonAPI:
         try:
             client = self._redis_client()
             if client is None:
-                return None
+                from django.core.cache import cache
+                cached = cache.get(self._local_test_cache_key(polygon_id))
+                return cached if cached else None
 
             prefix = f"polygon_migration_test_cases_{polygon_id}"
             count_key = f"{prefix}_count"
@@ -810,6 +841,8 @@ class PolygonAPI:
         try:
             client = self._redis_client()
             if client is None:
+                from django.core.cache import cache
+                cache.delete(self._local_test_cache_key(polygon_id))
                 return
             prefix = f"polygon_migration_test_cases_{polygon_id}"
             deleted_count = 0

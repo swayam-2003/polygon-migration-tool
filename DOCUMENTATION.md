@@ -50,7 +50,7 @@ For a fetch with no migration flag, the view:
 6. Loads every test body with `problem.testInput` and `problem.testAnswer` through `get_all_test_cases`, unless that payload is already in Redis.
 7. Renders previews. Input, output, and description longer than 50 characters get a "View Full" modal.
 
-`get_all_test_cases` marks a test as a sample when Polygon's `useInStatements` flag is true. Redis keys, when Redis is configured, are `polygon_migration_test_cases_{polygon_id}_count` and `_test_{n}`, with a 30 minute TTL. If Redis is down or unset, the view calls Polygon again.
+`get_all_test_cases` marks a test as a sample when Polygon's `useInStatements` flag is true. Redis keys, when Redis is configured, are `polygon_migration_test_cases_{polygon_id}_count` and `_test_{n}`, with a 30 minute TTL. If Redis is unset, the same payload is kept in the Django process cache for 30 minutes so a later click does not call Polygon again. Polygon requests time out after 30 seconds and are retried when the API returns 429 or 503. A failed test download stops the migration instead of saving a blank test.
 
 The main solution is loaded only when the problem already exists in the database, or during "Create/Update problem in Database". The view prefers the Polygon solution tagged `MA`.
 

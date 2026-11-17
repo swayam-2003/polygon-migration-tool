@@ -14,3 +14,4 @@ staticfiles/
 .vscode/
 *.egg-info/
 .pytest_cache/
+PRIVATE_SUBMISSION_STEPS.md

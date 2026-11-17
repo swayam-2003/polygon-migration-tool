@@ -126,6 +126,18 @@ class StorageMigrationTests(TestCase):
             self.assertEqual(storage.download_bytes("test_cases/1/01"), b"in")
         client.put_object.assert_called_once_with(Bucket="testcases", Key="test_cases/1/01", Body=b"in")
 
+    @override_settings(POLYGON_API_KEY="test-key", POLYGON_API_SECRET="test-secret")
+    def test_polygon_request_retries_rate_limit(self):
+        limited = MagicMock(status_code=429, headers={"Retry-After": "0"})
+        ok = MagicMock(status_code=200, headers={})
+        ok.json.return_value = {"status": "OK", "result": {"name": "A+B"}}
+        ok.raise_for_status.return_value = None
+        with patch("problems.polygon_api.requests.post", side_effect=[limited, ok]) as post, \
+                patch("problems.polygon_api.time.sleep"):
+            result = PolygonAPI()._make_request("problem.info", {"problemId": "69927"})
+        self.assertEqual(result, {"name": "A+B"})
+        self.assertEqual(post.call_count, 2)
+
 
 class MigrationFlowTests(TestCase):
     def setUp(self):

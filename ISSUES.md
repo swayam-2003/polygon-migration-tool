@@ -95,23 +95,23 @@ Delete `polygon_migration_test_cases_{polygon_id}*` before an upload, or skip th
 
 ---
 
-### [C2] Polygon calls have no timeout, and a failed test list becomes a successful zero
+### [C2] A failed test-list call is saved as zero tests
 
 **Severity**: High
 
 **Location**: `PolygonMigration/problems/polygon_api.py` (`requests.post` in `_make_request` and `download_and_extract_package`; `get_test_cases` returns `[]` on any exception) and `PolygonMigration/problems/views.py` (`test_case_count = len(api.get_test_cases(polygon_id))`)
 
 **Description**:
-Neither Polygon POST sets `timeout`. `get_test_cases`, `get_problem_files`, and `get_file_content` catch every exception and return an empty result. The view treats that empty list as the real test count and can save `test_case_count = 0` while still saving the statement. `get_all_test_cases` does not swallow a total failure, so the two calls can disagree: the count is 0 while the body fetch raises, or the count is 0 and the body fetch is skipped because of an earlier exception path.
+Polygon POSTs now wait at most 30 seconds and retry HTTP 429 and 503. `get_test_cases`, `get_problem_files`, and `get_file_content` still catch every exception and return an empty result. The view treats that empty list as the real test count and can save `test_case_count = 0` while still saving the statement. A failed call to `get_all_test_cases` now stops the migration instead of storing blank tests.
 
 **Impact**:
-A hung Polygon connection holds the Django worker, and it holds the database transaction opened at the start of the POST, until the process is killed. A brief API error during "Create/Update problem in Database" can persist a problem that claims to have no tests. The user sees success if the rest of the save works.
+A Polygon call now fails after the timeout and the retries, but it still holds the database transaction opened at the start of the POST while those retries run. A brief API error inside `get_test_cases` during "Create/Update problem in Database" can persist a problem that claims to have no tests. The user sees success if the rest of the save works.
 
 **Evidence**:
 Read from `_make_request`, `download_and_extract_package`, `get_test_cases`, and the `test_case_count` assignment. The automated tests stub `get_test_cases` with a real list, so they do not exercise the empty-on-error path.
 
 **Suggested Fix**:
-Set a timeout on every Polygon request and let the view show that error. Do not save `test_case_count` from a swallowed failure. Use one fetch result for both the count and the bodies.
+Do not save `test_case_count` from a swallowed failure. Use one fetch result for both the count and the bodies, and show the Polygon error on the page.
 
 ---
 

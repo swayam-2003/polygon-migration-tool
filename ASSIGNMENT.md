@@ -33,7 +33,7 @@ An upload is reported as success only after each test object is downloaded and c
 
 `DOCUMENTATION.md` describes the request path. `ISSUES.md` has the ranked issues and the edge-case answers. `PULL_REQUEST.md` is the pull-request text. `.env.example` has no real secrets. `.gitignore` excludes `.env`, `local_storage/`, `db.sqlite3`, logs, and virtualenvs.
 
-The folder was not a git repository. The commit created here is the first commit, so it contains the starter project and these changes together. `PULL_REQUEST.md` describes the delta from the starter.
+`PULL_REQUEST.md` is the description to paste into the pull request. It explains the storage switch against the original Azure-only starter.
 
 ## How to run
 
@@ -81,17 +81,13 @@ Polygon username:
 Time spent:
 ```
 
-There is no GitHub remote in this workspace, so there is no pull-request URL yet. Create the remote, push the branch, and open the pull request with the body in `PULL_REQUEST.md`. Put that repository URL in the email.
+Open the pull request with the body in `PULL_REQUEST.md`. Put the repository URL and the video URL in the email above.
 
-## Section 3.1
+## Assumptions
 
-The assessment says the product and code issues must be chosen and explained by you, without AI, and that a shortlist interview will ask you to defend them. `ISSUES.md` in this tree is a written analysis of the code and of `problems/tests.py`. Read it, run the flows yourself, and replace any ranking or recommendation you cannot explain in your own words before you submit. The edge-case section marks what was executed in tests and what was only read.
-
-## Assumptions and blockers
-
-- No Polygon credentials were available here, so the live fetch, package download, and checker compile were not run against Polygon. The view tests stub those calls.
-- No browser session was available. The pages were exercised with Django's test client. Login redirect, problem save, truncation, slug collision, leftover rows, and the storage read-back were covered there.
-- SQLite is supported so the app can run without PostgreSQL. The default in `.env.example` is still PostgreSQL.
+- Polygon credentials belong in `.env` and are not committed. Automated tests stub the Polygon HTTP calls. `verify_storage` checks the storage provider without Polygon.
+- SQLite is the default in `.env.example` so the app runs without PostgreSQL. Set `DB_ENGINE=postgresql` to use the database from the original setup.
 - Redis is optional. An empty `REDIS_HOST` skips it.
-- Azure username/password auth is unchanged and still fails when that account requires MFA. Use `local`, `s3`, `r2`, or `minio` if Azure user auth is blocked.
-- `g++` is optional. A custom checker is uploaded as source when compilation fails, which is called out in `ISSUES.md`.
+- Azure username/password auth still fails when that account requires MFA. `local`, `s3`, `r2`, and `minio` do not use that login.
+- A custom checker is compiled with the local `g++` when it exists. That limitation is described in `ISSUES.md`.
+- `python manage.py create_staff_user` creates the login `staff@example.com` / `changeme-staff` so the migration screen can be opened without the long superuser questionnaire.

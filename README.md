@@ -1,7 +1,35 @@
 # PolygonMigration
 
+## Run this first
+
+From `PolygonMigration/`, with Python 3.8+:
+
+```bash
+python -m venv venv
+# Windows: venv\Scripts\activate
+# macOS/Linux: source venv/bin/activate
+pip install -r ../requirement.txt
+# Windows: copy .env.example .env
+# macOS/Linux: cp .env.example .env
+```
+
+Edit `.env` and set `POLYGON_API_KEY` and `POLYGON_API_SECRET`. The example file already uses SQLite, local file storage, and no Redis.
+
+```bash
+python manage.py migrate
+python manage.py create_staff_user
+python manage.py verify_storage
+python manage.py runserver
+```
+
+Open http://localhost:8000/users/login/ and sign in as `staff@example.com` / `changeme-staff`. Fetch a Polygon problem id, choose a difficulty, save the problem, then use **Migrate Test Cases to Local filesystem**. The page lists each stored file as `match`. The same files are in `local_storage/test_cases/{database id}/`.
+
+`verify_storage` does not need Polygon. It writes two test cases, reads them back, and deletes them.
+
+PostgreSQL, Redis, Azure, S3, R2, and MinIO are optional. Their settings are in `.env.example`.
+
 ## Overview
-PolygonMigration is a Django-based web application designed to facilitate the migration of programming problems and their test cases from the [Polygon](https://polygon.codeforces.com/) platform to a local database and Azure Blob Storage. It provides a user-friendly interface for staff users to fetch, review, tag, and migrate problems, as well as manage test cases and metadata.
+PolygonMigration is a Django application that copies programming problems and their test cases from [Polygon](https://polygon.codeforces.com/) into a database and object storage. Staff users fetch a problem, tag it, save it, and upload the test files. An upload is shown as successful only after the stored bytes are read back and compared.
 
 ## Features
 - **Polygon Integration:** Fetch problems and test cases directly from Polygon using API keys.
@@ -23,9 +51,8 @@ PolygonMigration is a Django-based web application designed to facilitate the mi
 ## Setup Instructions
 ### 1. Prerequisites
 - Python 3.8+
-- PostgreSQL database
-- [Azure account](https://portal.azure.com/) with Blob Storage and an AAD application
-- Polygon API credentials
+- Polygon API credentials, from Polygon → Settings → API
+- Optional: PostgreSQL, Redis, and one of Azure, S3, R2, or MinIO
 
 ### 2. Clone the Repository
 ```bash
@@ -54,8 +81,8 @@ SECRET_KEY=your-django-secret-key
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 
-# Database. Use DB_ENGINE=sqlite to run without PostgreSQL.
-DB_ENGINE=postgresql
+# Database. sqlite needs nothing else. postgresql uses the DB_* values below.
+DB_ENGINE=sqlite
 DB_NAME=your_db_name
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
@@ -70,15 +97,16 @@ POLYGON_API_SECRET=your_polygon_api_secret
 STORAGE_PROVIDER=local
 # LOCAL_STORAGE_ROOT=/absolute/path/to/local_storage
 
-# Redis (optional, for caching)
-REDIS_HOST=localhost
+# Redis (optional). Leave the host empty to skip it.
+REDIS_HOST=
 REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_SSL=False
 ```
 
 ### 6. Database Setup
-- Ensure PostgreSQL is running. To run without PostgreSQL, set `DB_ENGINE=sqlite` in `.env` and skip the `psql` steps. SQLite is stored at `PolygonMigration/db.sqlite3`.
+- The quick start uses SQLite (`DB_ENGINE=sqlite`). Skip this section in that case. The file is `PolygonMigration/db.sqlite3`.
+- Use the steps below only when `.env` has `DB_ENGINE=postgresql`. PostgreSQL must be running.
 - **If you have not set up the database and user yet, follow these steps:**
 
   1. Open a terminal and access the PostgreSQL prompt (you may need to enter your system password):
