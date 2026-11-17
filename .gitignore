@@ -1,0 +1,16 @@
+.env
+*.env
+!.env.example
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+logs/
+*.log
+db.sqlite3
+local_storage/
+staticfiles/
+.idea/
+.vscode/
+*.egg-info/
+.pytest_cache/
